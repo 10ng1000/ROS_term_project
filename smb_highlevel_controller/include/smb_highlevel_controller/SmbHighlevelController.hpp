@@ -27,7 +27,13 @@ public:
 private:
 	bool readParameters();
 	void scanCallback(const sensor_msgs::LaserScan::ConstPtr& msg);
-	void pillarVisualization();
+	void pillarVisualization(float xpos, float ypos);
+	void findPillar(float xpos, float ypos, float angle);
+	void obstacleAvoidance();
+
+	void startCircularMotion(float startAngle, float augular, float radius);
+	void circularMotion(float augular, float radius);
+	void iniCircularMotion(float angle, bool &ini);
 
 	ros::NodeHandle nodeHandle_;
 	ros::Subscriber scansubscriber_;
@@ -35,9 +41,6 @@ private:
 	ros::Publisher cmdvelpublisher_;
 	ros::Publisher markerpublisher_;
 	int queueSize_;
-
-	float xpos;
-	float ypos;
 };
 
 } /* namespace */

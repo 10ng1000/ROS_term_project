@@ -242,14 +242,14 @@ Visualization Manager:
       Marker Topic: /visualization_marker
       Name: Marker
       Namespaces:
-        pillar_marker: true
+        {}
       Queue Size: 100
       Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
     Default Light: true
-    Fixed Frame: odom
+    Fixed Frame: base_link
     Frame Rate: 30
   Name: root
   Tools:
@@ -329,5 +329,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 1267
-  X: 287
-  Y: 139
+  X: 426
+  Y: 131
