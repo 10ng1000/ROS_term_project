@@ -33,7 +33,7 @@ private:
 
 	void startCircularMotion(float startAngle, float augular, float radius);
 	void circularMotion(float augular, float radius);
-	void iniCircularMotion(float angle, bool &ini);
+	void iniCircularMotion(float angle,float distance, bool &ini, float &fixedRadius);
 
 	ros::NodeHandle nodeHandle_;
 	ros::Subscriber scansubscriber_;
