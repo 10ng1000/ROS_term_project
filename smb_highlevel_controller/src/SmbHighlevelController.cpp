@@ -38,23 +38,24 @@ void SmbHighlevelController::scanCallback(const sensor_msgs::LaserScan::ConstPtr
   float angleMinLeft, angleMinRight;
   float distance;
   float angle;
-  disMinLeft = INF;
-  angleMinLeft = msg->angle_min;
-  for (int i = 0; i < msg->ranges.size()/2; i++) {
-    if (msg->ranges[i] < disMinLeft) {
-      disMinLeft = msg->ranges[i];
-      angleMinLeft = msg->angle_min + i*msg->angle_increment;
-      //ROS_INFO_STREAM_THROTTLE(1, "angleMinLeft: " << angleMinLeft << " disMinLeft: " << disMinLeft);
-    }
-  }
-  disMinRight = msg->ranges[msg->ranges.size()/2];
+  disMinRight = INF;
   angleMinRight = msg->angle_min;
-  for (int i = msg->ranges.size()/2; i < msg->ranges.size(); i++) {
+  for (int i = 0; i < msg->ranges.size()/2; i++) {
     if (msg->ranges[i] < disMinRight) {
       disMinRight = msg->ranges[i];
-      angleMinRight = msg->angle_min + i * msg->angle_increment;
+      angleMinRight = msg->angle_min + i*msg->angle_increment;
     }
   }
+  disMinLeft = msg->ranges[msg->ranges.size()/2];
+  angleMinLeft = msg->angle_min;
+  for (int i = msg->ranges.size()/2; i < msg->ranges.size(); i++) {
+    if (msg->ranges[i] < disMinLeft) {
+      disMinLeft = msg->ranges[i];
+      angleMinLeft = msg->angle_min + i * msg->angle_increment;
+    }
+  }
+  ROS_INFO_STREAM_THROTTLE(1, "angleMinLeft: " << angleMinLeft << " disMinLeft: " << disMinLeft);
+  ROS_INFO_STREAM_THROTTLE(1, "angleMinRight: " << angleMinRight << " disMinRight: " << disMinRight);
   if (disMinLeft < disMinRight) {
     distance = disMinLeft;
     angle = angleMinLeft;
@@ -67,7 +68,7 @@ void SmbHighlevelController::scanCallback(const sensor_msgs::LaserScan::ConstPtr
   float xpos = distance * cos(angle);
   float ypos = distance * sin(angle);
   obstacleAvoidance(distance, disMinLeft, disMinRight, angleMinLeft, angleMinRight);
-  if(xpos > 2 && arrive == 0) {
+  if(xpos > avoidDistance_ && arrive == 0) {
     findPillar(xpos, ypos, angle);
   }
   else {
@@ -136,16 +137,16 @@ void SmbHighlevelController::obstacleAvoidance(float distance, float disMinLeft,
   if (avoiding == false) return;
   geometry_msgs::Twist cmd_vel;
   cmd_vel.linear.x = speed_;
-  if ((disMinLeft >= 2.0 * avoidDistance_ + 2 || disMinRight >= 2.0 * avoidDistance_ + 2) && avoiding == true) {
+  if ((disMinLeft >= 1.5 * avoidDistance_&& disMinRight >= 1.5 * avoidDistance_) && avoiding == true) {
      avoiding = false;
      cmd_vel.angular.z = 0;
      cmdvelpublisher_.publish(cmd_vel);
      ROS_INFO_STREAM_THROTTLE(2.0, "Successfully aoivded."); 
      return;
   }
-  cmd_vel.linear.x = (distance + 0.5 - avoidDistance_) * speed_;
-  if (disMinLeft >= disMinRight) cmd_vel.angular.z = std::abs(disMinLeft/disMinRight) * angularSpeed_ * 10;
-  else cmd_vel.angular.z = -std::abs(disMinRight/disMinLeft) * angularSpeed_ * 10;
+  cmd_vel.linear.x = (distance - avoidDistance_) * speed_;
+  if (disMinLeft >= disMinRight) cmd_vel.angular.z = disMinLeft > 3 * avoidDistance_? 60 * avoidDistance_ * angularSpeed_ :disMinLeft * angularSpeed_ * 20;
+  else cmd_vel.angular.z = - (disMinRight > 3 * avoidDistance_? 60 * avoidDistance_ * angularSpeed_ :disMinRight * angularSpeed_ * 20);
   cmdvelpublisher_.publish(cmd_vel);
   ROS_INFO_STREAM_THROTTLE(2.0,"obstacle Avoiding, Linear velocity (m/s) : " << cmd_vel.linear.x);
   ROS_INFO_STREAM_THROTTLE(2.0,"Angular velocity (rad/s) : " << cmd_vel.angular.z);
