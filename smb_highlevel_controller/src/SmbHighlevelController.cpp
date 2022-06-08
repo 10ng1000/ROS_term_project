@@ -54,8 +54,8 @@ void SmbHighlevelController::scanCallback(const sensor_msgs::LaserScan::ConstPtr
       angleMinLeft = msg->angle_min + i * msg->angle_increment;
     }
   }
-  ROS_INFO_STREAM_THROTTLE(1, "angleMinLeft: " << angleMinLeft << " disMinLeft: " << disMinLeft);
-  ROS_INFO_STREAM_THROTTLE(1, "angleMinRight: " << angleMinRight << " disMinRight: " << disMinRight);
+  //ROS_INFO_STREAM_THROTTLE(1, "angleMinLeft: " << angleMinLeft << " disMinLeft: " << disMinLeft);
+  //ROS_INFO_STREAM_THROTTLE(1, "angleMinRight: " << angleMinRight << " disMinRight: " << disMinRight);
   if (disMinLeft < disMinRight) {
     distance = disMinLeft;
     angle = angleMinLeft;
@@ -64,16 +64,15 @@ void SmbHighlevelController::scanCallback(const sensor_msgs::LaserScan::ConstPtr
     distance = disMinRight;
     angle = angleMinRight;
   }
-  //ROS_INFO_STREAM_THROTTLE(1, "distance: " << distance << " angle: " << angle);
   float xpos = distance * cos(angle);
   float ypos = distance * sin(angle);
   obstacleAvoidance(distance, disMinLeft, disMinRight, angleMinLeft, angleMinRight);
+  //startCircularMotion(angle, angularSpeed_, distance);
   if(xpos > avoidDistance_ && arrive == 0) {
     findPillar(xpos, ypos, angle);
   }
   else {
     arrive = 1;
-    //startCircularMotion(angle, angularSpeed_, distance);
   }
 }
 
@@ -94,25 +93,26 @@ void SmbHighlevelController::startCircularMotion(float startAngle, float angular
   static bool ini = false;
   static float fixedRadius = 0;
   if (!ini) iniCircularMotion(startAngle, radius, ini, fixedRadius);
-  else circularMotion(angular, fixedRadius);
+  //else circularMotion(angular, fixedRadius);
 }
 
 void SmbHighlevelController::circularMotion(float angular, float radius)
 {
   geometry_msgs::Twist cmd_vel;
-  cmd_vel.linear.x = angular * radius * 0.3;//Mysterious parameter 0.3 got by DEEEEEEBUG
+  cmd_vel.linear.x = angular * radius; //This does not work, so don't execute this function
   cmd_vel.angular.x = 0;
   cmd_vel.angular.y = 0;
   cmd_vel.angular.z = - angular;
   cmdvelpublisher_.publish(cmd_vel);
-  ROS_INFO_STREAM_THROTTLE(2.0,"Moving, Linear velocity (m/s) : " << cmd_vel.linear.x);
+  ROS_INFO_STREAM_THROTTLE(2.0,"------Moving------");
+  ROS_INFO_STREAM_THROTTLE(2.0,"Linear velocity (m/s) : " << cmd_vel.linear.x);
   ROS_INFO_STREAM_THROTTLE(2.0,"Angular velocity (rad/s) : " << cmd_vel.angular.z);
 }
 
 void SmbHighlevelController::iniCircularMotion(float angle, float distance, bool &ini, float &fixedRadius)
 {
   geometry_msgs::Twist cmd_vel;
-  if (angle > 1.55 && angle < 1.6 || angle > -1.6 && angle < -1.55) {
+  if (angle > 1.56 && angle < 1.6 || angle > -1.6 && angle < -1.56) {
     cmd_vel.linear.x = 0;
     cmd_vel.angular.z = 0;
     fixedRadius = distance;
@@ -122,7 +122,7 @@ void SmbHighlevelController::iniCircularMotion(float angle, float distance, bool
     return;
   }
   cmd_vel.linear.x = 0;
-  cmd_vel.angular.z =  angularSpeed_ * (2 - angle);
+  cmd_vel.angular.z =  angularSpeed_ * (1.7 - angle) * 0.8;
   ini = false;
   cmdvelpublisher_.publish(cmd_vel);
   ROS_INFO_STREAM_THROTTLE(2.0, "Waiting for the robot to be in the correct position.");
@@ -137,18 +137,19 @@ void SmbHighlevelController::obstacleAvoidance(float distance, float disMinLeft,
   if (avoiding == false) return;
   geometry_msgs::Twist cmd_vel;
   cmd_vel.linear.x = speed_;
-  if ((disMinLeft >= 1.5 * avoidDistance_&& disMinRight >= 1.5 * avoidDistance_) && avoiding == true) {
+  if ((disMinLeft >= 2 * avoidDistance_ + 1 && disMinRight >= 2 * avoidDistance_ + 1) && avoiding == true) {
      avoiding = false;
      cmd_vel.angular.z = 0;
      cmdvelpublisher_.publish(cmd_vel);
-     ROS_INFO_STREAM_THROTTLE(2.0, "Successfully aoivded."); 
+     ROS_INFO_STREAM_THROTTLE(2.0, "------Successfully Aoivded.------"); 
      return;
   }
   cmd_vel.linear.x = (distance - avoidDistance_) * speed_;
   if (disMinLeft >= disMinRight) cmd_vel.angular.z = disMinLeft > 3 * avoidDistance_? 60 * avoidDistance_ * angularSpeed_ :disMinLeft * angularSpeed_ * 20;
   else cmd_vel.angular.z = - (disMinRight > 3 * avoidDistance_? 60 * avoidDistance_ * angularSpeed_ :disMinRight * angularSpeed_ * 20);
   cmdvelpublisher_.publish(cmd_vel);
-  ROS_INFO_STREAM_THROTTLE(2.0,"obstacle Avoiding, Linear velocity (m/s) : " << cmd_vel.linear.x);
+  ROS_INFO_STREAM_THROTTLE(2.0,"------Obstacle Avoiding------");
+  ROS_INFO_STREAM_THROTTLE(2.0,"Linear velocity (m/s) : " << cmd_vel.linear.x);
   ROS_INFO_STREAM_THROTTLE(2.0,"Angular velocity (rad/s) : " << cmd_vel.angular.z);
 }
 
