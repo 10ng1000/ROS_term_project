@@ -12,7 +12,7 @@
     <rosparam file="$(find smb_highlevel_controller)/config/default.yaml" command="load"/>
   </node>
 
-  <node pkg="rviz" type="rviz" name="rviz" args="-d $(find smb_highlevel_controller)/config/rviz/smb_highlevel_controller.rviz">
-  </node >
+  <!--node pkg="rviz" type="rviz" name="rviz" args="-d $(find smb_highlevel_controller)/config/rviz/smb_highlevel_controller.rviz">
+  </node -->
 
 </launch>

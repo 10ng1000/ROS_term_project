@@ -24,7 +24,9 @@ SmbHighlevelController::~SmbHighlevelController()
 bool SmbHighlevelController::readParameters()
 {
   {
-  if (!nodeHandle_.getParam("subscriber_topic", scanTopic_) || !nodeHandle_.getParam("queue_size", queueSize_)) return false;
+  if (!nodeHandle_.getParam("subscriber_topic", scanTopic_) || !nodeHandle_.getParam("queue_size", queueSize_)
+      || !nodeHandle_.getParam("avoid_distance", avoidDistance_) || !nodeHandle_.getParam("speed", speed_)
+      || !nodeHandle_.getParam("angular_speed", angularSpeed_)) return false;
   return true;
   }
 }
@@ -32,70 +34,58 @@ bool SmbHighlevelController::readParameters()
 void SmbHighlevelController::scanCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
 {
   static bool arrive = 0;
-  float angle = msg->angle_min;
-  float distance = msg->ranges[0];
-  for (int i = 0; i < msg->ranges.size(); i++) {
-    if (distance > msg->ranges[i]) {
-      distance = msg->ranges[i];
-      angle = msg->angle_min + i * msg->angle_increment;
+  float disMinLeft, disMinRight;
+  float angleMinLeft, angleMinRight;
+  float distance;
+  float angle;
+  disMinLeft = INF;
+  angleMinLeft = msg->angle_min;
+  for (int i = 0; i < msg->ranges.size()/2; i++) {
+    if (msg->ranges[i] < disMinLeft) {
+      disMinLeft = msg->ranges[i];
+      angleMinLeft = msg->angle_min + i*msg->angle_increment;
+      //ROS_INFO_STREAM_THROTTLE(1, "angleMinLeft: " << angleMinLeft << " disMinLeft: " << disMinLeft);
     }
   }
+  disMinRight = msg->ranges[msg->ranges.size()/2];
+  angleMinRight = msg->angle_min;
+  for (int i = msg->ranges.size()/2; i < msg->ranges.size(); i++) {
+    if (msg->ranges[i] < disMinRight) {
+      disMinRight = msg->ranges[i];
+      angleMinRight = msg->angle_min + i * msg->angle_increment;
+    }
+  }
+  if (disMinLeft < disMinRight) {
+    distance = disMinLeft;
+    angle = angleMinLeft;
+  }
+  else {
+    distance = disMinRight;
+    angle = angleMinRight;
+  }
+  //ROS_INFO_STREAM_THROTTLE(1, "distance: " << distance << " angle: " << angle);
   float xpos = distance * cos(angle);
   float ypos = distance * sin(angle);
-  //ROS_INFO_STREAM_THROTTLE(1, "xpos: " << xpos << " ypos: " << ypos);
+  obstacleAvoidance(distance, disMinLeft, disMinRight, angleMinLeft, angleMinRight);
   if(xpos > 2 && arrive == 0) {
     findPillar(xpos, ypos, angle);
   }
   else {
     arrive = 1;
-    startCircularMotion(angle, 1, distance);
+    //startCircularMotion(angle, angularSpeed_, distance);
   }
-  //pillarVisualization(xpos, ypos);
-}
-
-void SmbHighlevelController::pillarVisualization(float xpos, float ypos)
-{
-  visualization_msgs::Marker marker;
-  marker.header.frame_id = "rslidar";
-  marker.header.stamp = ros::Time::now();
-  marker.ns = "pillar_marker";
-  marker.id = 0;
-  marker.type = visualization_msgs::Marker::CUBE;
-  marker.action = visualization_msgs::Marker::ADD;
-  marker.pose.position.x = xpos;
-  marker.pose.position.y = ypos;
-  marker.pose.position.z = 0.1;
-  marker.pose.orientation.x = 0.0;
-  marker.pose.orientation.y = 0.0;
-  marker.pose.orientation.z = 0.0;
-  marker.pose.orientation.w = 1.0;
-  marker.scale.x = 0.5;
-  marker.scale.y = 0.5;
-  marker.scale.z = 0.5;
-  marker.color.a = 1.0;
-  marker.color.r = 0.0;
-  marker.color.g = 1.0;
-  marker.color.b = 0.0;
-  markerpublisher_.publish(marker);
 }
 
 void SmbHighlevelController::findPillar(float xpos, float ypos, float angle)
 {
   geometry_msgs::Twist cmd_vel;
-  float p_gain_v = 0.1;
-  float p_gain_a = 0.4;
-
-  cmd_vel.linear.x = xpos > 0.4 ? xpos * p_gain_v : 0;
-  cmd_vel.angular.z = xpos > 0.4 ? (ypos * p_gain_a) : 0;
-
+  cmd_vel.linear.x = xpos > 0.4 ? xpos * speed_ : 0;
+  cmd_vel.angular.z = xpos > 0.4 ? (ypos * angularSpeed_) : 0;
   cmdvelpublisher_.publish(cmd_vel);
-  ROS_INFO_STREAM_THROTTLE(2.0,"X position of pillar (m) : " << xpos);
-  ROS_INFO_STREAM_THROTTLE(2.0,"Y position of pillar (m) : " << ypos);
-  ROS_INFO_STREAM_THROTTLE(2.0,"Angle of pillar (rad) : " << angle);
+
+  ROS_INFO_STREAM_THROTTLE(2.0,"------Tracking pillar------");
   ROS_INFO_STREAM_THROTTLE(2.0,"Linear velocity (m/s) : " << cmd_vel.linear.x);
   ROS_INFO_STREAM_THROTTLE(2.0,"Angular velocity (rad/s) : " << cmd_vel.angular.z);
-
-  ROS_INFO_STREAM_THROTTLE(2.0,"Successfully published.");
 }
 
 void SmbHighlevelController::startCircularMotion(float startAngle, float angular, float radius)
@@ -109,7 +99,7 @@ void SmbHighlevelController::startCircularMotion(float startAngle, float angular
 void SmbHighlevelController::circularMotion(float angular, float radius)
 {
   geometry_msgs::Twist cmd_vel;
-  cmd_vel.linear.x = angular * radius * 0.3;
+  cmd_vel.linear.x = angular * radius * 0.3;//Mysterious parameter 0.3 got by DEEEEEEBUG
   cmd_vel.angular.x = 0;
   cmd_vel.angular.y = 0;
   cmd_vel.angular.z = - angular;
@@ -127,28 +117,37 @@ void SmbHighlevelController::iniCircularMotion(float angle, float distance, bool
     fixedRadius = distance;
     ini = true;
     cmdvelpublisher_.publish(cmd_vel);
-    ROS_INFO_STREAM_THROTTLE(2.0,"distance : " << distance);
     ROS_INFO_STREAM_THROTTLE(2.0,"Robot is in the correct position.");
     return;
   }
-  float p_gain_a = 0.1;
   cmd_vel.linear.x = 0;
-  cmd_vel.angular.z =  p_gain_a * (2 - angle);
+  cmd_vel.angular.z =  angularSpeed_ * (2 - angle);
   ini = false;
   cmdvelpublisher_.publish(cmd_vel);
-  ROS_INFO_STREAM_THROTTLE(1.0,"distance : " << distance);
-  ROS_INFO_STREAM_THROTTLE(1.0, "Waiting for the robot to be in the correct position.");
-  //ROS_DEBUG_STREAM("Angular velocity (rad/s) : " << cmd_vel.angular.z);
-  //ROS_INFO_STREAM_THROTTLE(2.0,"Angle of pillar (rad) : " << angle);
+  ROS_INFO_STREAM_THROTTLE(2.0, "Waiting for the robot to be in the correct position.");
 }
 
-void SmbHighlevelController::obstacleAvoidance()
+void SmbHighlevelController::obstacleAvoidance(float distance, float disMinLeft, float disMinRight, float angleMinLeft, float angleMinRight)
 {
+  static bool avoiding = false;
+  if (distance < avoidDistance_) {
+    avoiding = true;
+  }
+  if (avoiding == false) return;
   geometry_msgs::Twist cmd_vel;
-  cmd_vel.linear.x = 0;
-  cmd_vel.angular.z = 0.5;
+  cmd_vel.linear.x = speed_;
+  if ((disMinLeft >= 2.0 * avoidDistance_ + 2 || disMinRight >= 2.0 * avoidDistance_ + 2) && avoiding == true) {
+     avoiding = false;
+     cmd_vel.angular.z = 0;
+     cmdvelpublisher_.publish(cmd_vel);
+     ROS_INFO_STREAM_THROTTLE(2.0, "Successfully aoivded."); 
+     return;
+  }
+  cmd_vel.linear.x = (distance + 0.5 - avoidDistance_) * speed_;
+  if (disMinLeft >= disMinRight) cmd_vel.angular.z = std::abs(disMinLeft/disMinRight) * angularSpeed_ * 10;
+  else cmd_vel.angular.z = -std::abs(disMinRight/disMinLeft) * angularSpeed_ * 10;
   cmdvelpublisher_.publish(cmd_vel);
-  ROS_INFO_STREAM_THROTTLE(2.0,"Moving, Linear velocity (m/s) : " << cmd_vel.linear.x);
+  ROS_INFO_STREAM_THROTTLE(2.0,"obstacle Avoiding, Linear velocity (m/s) : " << cmd_vel.linear.x);
   ROS_INFO_STREAM_THROTTLE(2.0,"Angular velocity (rad/s) : " << cmd_vel.angular.z);
 }
 

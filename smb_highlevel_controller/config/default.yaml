@@ -1,2 +1,5 @@
 subscriber_topic : /scan
 queue_size : 1
+avoid_distance : 1
+speed : 0.3
+angular_speed : 1
