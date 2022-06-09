@@ -131,22 +131,26 @@ void SmbHighlevelController::iniCircularMotion(float angle, float distance, bool
 void SmbHighlevelController::obstacleAvoidance(float distance, float disMinLeft, float disMinRight, float angleMinLeft, float angleMinRight)
 {
   static bool avoiding = false;
+  geometry_msgs::Twist cmd_vel;
   if (distance < avoidDistance_) {
     avoiding = true;
   }
-  if (avoiding == false) return;
-  geometry_msgs::Twist cmd_vel;
-  cmd_vel.linear.x = speed_;
-  if ((disMinLeft >= 2 * avoidDistance_ + 1 && disMinRight >= 2 * avoidDistance_ + 1) && avoiding == true) {
+  if (avoiding == false) {
+    cmd_vel.linear.x = speed_;
+    cmdvelpublisher_.publish(cmd_vel);
+    return;
+  }
+  if ((disMinLeft >= avoidDistance_ + 1 && disMinRight >= avoidDistance_ + 1)  && avoiding == true) {
      avoiding = false;
+     cmd_vel.linear.x = 0.1 * speed_;
      cmd_vel.angular.z = 0;
      cmdvelpublisher_.publish(cmd_vel);
      ROS_INFO_STREAM_THROTTLE(2.0, "------Successfully Aoivded.------"); 
      return;
   }
   cmd_vel.linear.x = (distance - avoidDistance_) * speed_;
-  if (disMinLeft >= disMinRight) cmd_vel.angular.z = disMinLeft > 3 * avoidDistance_? 60 * avoidDistance_ * angularSpeed_ :disMinLeft * angularSpeed_ * 20;
-  else cmd_vel.angular.z = - (disMinRight > 3 * avoidDistance_? 60 * avoidDistance_ * angularSpeed_ :disMinRight * angularSpeed_ * 20);
+  if (disMinLeft >= disMinRight) cmd_vel.angular.z = disMinLeft > avoidDistance_? avoidDistance_ * angularSpeed_ :disMinLeft * angularSpeed_ ;
+  else cmd_vel.angular.z = - (disMinRight > avoidDistance_? avoidDistance_ * angularSpeed_ :disMinRight * angularSpeed_ );
   cmdvelpublisher_.publish(cmd_vel);
   ROS_INFO_STREAM_THROTTLE(2.0,"------Obstacle Avoiding------");
   ROS_INFO_STREAM_THROTTLE(2.0,"Linear velocity (m/s) : " << cmd_vel.linear.x);
